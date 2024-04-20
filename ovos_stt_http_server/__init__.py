@@ -36,12 +36,10 @@ class ModelContainer:
             self.lang_plugin = lang_plugin()
         self.engine = plugin(config)
 
-    def process_audio(self, audio: AudioData, lang):
+    def process_audio(self, audio: AudioData, lang: str):
         if lang == "auto":
             lang, prob = self.lang_plugin.detect(audio)
-        if audio or self.engine.can_stream:
-            return self.engine.execute(audio, language=lang) or ""
-        return ""
+        return self.engine.execute(audio, language=lang) or ""
 
 
 class MultiModelContainer:
@@ -60,31 +58,29 @@ class MultiModelContainer:
         self.engines = {}
         self.config = config or {}
 
-    def get_engine(self, lang):
+    def get_engine(self, lang: str):
         if lang not in self.engines:
             self.load_engine(lang)
         return self.engines[lang]
 
-    def load_engine(self, lang, config=None):
+    def load_engine(self, lang: str, config=None):
         # might need to load multiple models per language
         config = config or self.config
         config["lang"] = lang
         self.engines[lang] = self.plugin_class(config=config)
 
-    def unload_engine(self, lang):
+    def unload_engine(self, lang: str):
         if lang in self.engines:
             self.engines.pop(lang)
 
-    def process_audio(self, audio: AudioData, lang):
+    def process_audio(self, audio: AudioData, lang: str):
         if lang == "auto":
-            lang, prob = self.lang_plugin.detect(audio)
+            lang, prob = self.lang_plugin.detect(audio.get_wav_data())
         engine = self.get_engine(lang)
-        if audio or engine.can_stream:
-            return engine.execute(audio, language=lang) or ""
-        return ""
+        return engine.execute(audio, language=lang) or ""
 
 
-def bytes2audiodata(data):
+def bytes2audiodata(data: bytes) -> AudioData:
     recognizer = Recognizer()
     with NamedTemporaryFile() as fp:
         fp.write(data)
@@ -117,8 +113,7 @@ def create_app(stt_plugin, lang_plugin=None, multi=False, has_gradio=False):
     @app.post("/lang_detect")
     async def get_lang(request: Request):
         audio_bytes = await request.body()
-        audio = bytes2audiodata(audio_bytes)
-        lang, prob = model.lang_plugin.detect(audio)
+        lang, prob = model.lang_plugin.detect(audio_bytes)
         return {"lang": lang, "conf": prob}
 
     return app, model
